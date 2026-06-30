@@ -8,7 +8,7 @@ from discord.ext import commands
 from config import TOKEN, GUILD_ID, ADMIN_ROLE_ID
 from database import init_db, get_link, save_pending_state
 from roblox import get_group_role, get_roblox_username
-from rankbind_store import set_bind, remove_bind, get_all_binds
+from rankbinds_store import set_bind, remove_bind, get_all_binds
 from oauth_server import build_authorize_url, run_oauth_server
 
 intents = discord.Intents.default()
