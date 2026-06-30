@@ -10,6 +10,7 @@ from database import init_db, get_link, save_pending_state
 from roblox import get_group_role, get_roblox_username
 from rankbinds_store import set_bind, remove_bind, get_all_binds
 from oauth_server import build_authorize_url, run_oauth_server
+from panel_view import VerificationPanel
 
 intents = discord.Intents.default()
 intents.members = True
@@ -24,6 +25,7 @@ def is_admin(member: discord.Member) -> bool:
 
 @bot.event
 async def on_ready():
+    bot.add_view(VerificationPanel())
     synced = await bot.tree.sync(guild=GUILD_OBJ)
     print(f"Logged in as {bot.user} | Synced {len(synced)} commands")
 
@@ -101,6 +103,24 @@ async def update(interaction: discord.Interaction, user: discord.Member = None):
     await interaction.followup.send(result)
 
 
+@bot.tree.command(name="panel", description="Post the verification panel", guild=GUILD_OBJ)
+async def panel(interaction: discord.Interaction):
+    if not is_admin(interaction.user):
+        await interaction.response.send_message("You don't have permission to do this.", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="BRITISH ARMY VERIFICATION SYSTEM",
+        description=(
+            "Use the **Verify via ROBLOX Login** button to verify / reverify your ROBLOX account. "
+            "Use the **Update Roles** button to update your roles."
+        ),
+        color=discord.Color.green()
+    )
+    embed.set_author(name="Royal Guard")
+    await interaction.response.send_message(embed=embed, view=VerificationPanel())
+
+
 rankbind_group = app_commands.Group(name="rankbind", description="Manage rank-to-role binds", guild_ids=[GUILD_ID])
 
 
@@ -143,7 +163,6 @@ bot.tree.add_command(rankbind_group)
 
 def main():
     init_db()
-    # Run Flask in a background thread alongside the bot
     threading.Thread(target=run_oauth_server, daemon=True).start()
     bot.run(TOKEN)
 
