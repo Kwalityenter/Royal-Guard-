@@ -1,16 +1,17 @@
 import threading
-import secrets
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 from config import TOKEN, GUILD_ID, ADMIN_ROLE_ID
-from database import init_db, get_link, save_pending_state
+from database import init_db, get_link
 from roblox import get_group_role, get_roblox_username
 from rankbind_store import set_bind, remove_bind, get_all_binds
-from oauth_server import build_authorize_url, run_oauth_server
+from oauth_server import run_oauth_server
 from panel_view import VerificationPanel
+from ticket_view import ReportTicketPanel, OtherTicketPanel
+import embed_config as cfg
 
 intents = discord.Intents.default()
 intents.members = True
@@ -26,28 +27,16 @@ def is_admin(member: discord.Member) -> bool:
 @bot.event
 async def on_ready():
     bot.add_view(VerificationPanel())
+    bot.add_view(ReportTicketPanel())
+    bot.add_view(OtherTicketPanel())
     synced = await bot.tree.sync(guild=GUILD_OBJ)
     print(f"Logged in as {bot.user} | Synced {len(synced)} commands")
-
-
-@bot.tree.command(name="verify", description="Link your Roblox account via Roblox OAuth2", guild=GUILD_OBJ)
-async def verify(interaction: discord.Interaction):
-    state = secrets.token_urlsafe(16)
-    save_pending_state(state, str(interaction.user.id))
-    url = build_authorize_url(state)
-
-    embed = discord.Embed(
-        title="Verify your Roblox account",
-        description=f"[Click here to verify]({url})\n\nThis link is one-time use and tied to your Discord account.",
-        color=discord.Color.blurple()
-    )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 async def perform_update(member: discord.Member) -> str:
     link = get_link(str(member.id))
     if not link:
-        return f"{member.mention} is not verified. Run `/verify` first."
+        return cfg.UPDATE_NOT_VERIFIED_TEXT.format(member=member.mention)
 
     roblox_id = link["roblox_id"]
     role_data = await get_group_role(roblox_id)
@@ -58,7 +47,7 @@ async def perform_update(member: discord.Member) -> str:
             await member.kick(reason="No longer in Roblox group")
         except discord.Forbidden:
             return f"Could not kick {member} — missing permissions or role hierarchy issue."
-        return f"{member} was removed (no longer in the Roblox group)."
+        return f"{cfg.UPDATE_KICK_PREFIX}{member} was removed (no longer in the Roblox group)."
 
     username = await get_roblox_username(roblox_id)
     if username:
@@ -86,15 +75,26 @@ async def perform_update(member: discord.Member) -> str:
             except discord.Forbidden:
                 pass
 
-    return f"{member} updated → **{role_data['rank_name']}** (rank {role_data['rank_id']})"
+    return f"{cfg.UPDATE_SUCCESS_PREFIX}{member} updated → **{role_data['rank_name']}** (rank {role_data['rank_id']})"
 
 
 @bot.tree.command(name="update", description="Resync your roles, nickname, and group status", guild=GUILD_OBJ)
 @app_commands.describe(user="User to update (staff only)")
 async def update(interaction: discord.Interaction, user: discord.Member = None):
+    target = user or interaction.user
+
+    if not get_link(str(target.id)):
+        embed = discord.Embed(
+            title=cfg.NOT_VERIFIED_TITLE,
+            description=cfg.NOT_VERIFIED_UPDATE_DESCRIPTION,
+            color=cfg.NOT_VERIFIED_COLOR
+        )
+        embed.set_author(name="Royal Guard", icon_url=interaction.client.user.display_avatar.url)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+
     await interaction.response.defer()
 
-    target = user or interaction.user
     if user and user != interaction.user and not is_admin(interaction.user):
         await interaction.followup.send("You don't have permission to update other users.")
         return
@@ -110,15 +110,35 @@ async def panel(interaction: discord.Interaction):
         return
 
     embed = discord.Embed(
-        title="BRITISH ARMY VERIFICATION SYSTEM",
-        description=(
-            "Use the **Verify via ROBLOX Login** button to verify / reverify your ROBLOX account. "
-            "Use the **Update Roles** button to update your roles."
-        ),
-        color=discord.Color.green()
+        title=cfg.PANEL_TITLE,
+        description=cfg.PANEL_DESCRIPTION,
+        color=cfg.PANEL_COLOR
     )
-    embed.set_author(name="Royal Guard")
+    embed.set_author(name=cfg.PANEL_AUTHOR_NAME)
+    if cfg.PANEL_FOOTER_TEXT:
+        embed.set_footer(text=cfg.PANEL_FOOTER_TEXT)
     await interaction.response.send_message(embed=embed, view=VerificationPanel())
+
+
+@bot.tree.command(name="ticketpanel", description="Post the ticket creation panels", guild=GUILD_OBJ)
+async def ticketpanel(interaction: discord.Interaction):
+    if not is_admin(interaction.user):
+        await interaction.response.send_message("You don't have permission to do this.", ephemeral=True)
+        return
+
+    report_embed = discord.Embed(
+        title=cfg.REPORT_TICKET_TITLE,
+        description=cfg.REPORT_TICKET_DESCRIPTION,
+        color=cfg.REPORT_TICKET_COLOR
+    )
+    other_embed = discord.Embed(
+        title=cfg.OTHER_TICKET_TITLE,
+        description=cfg.OTHER_TICKET_DESCRIPTION,
+        color=cfg.OTHER_TICKET_COLOR
+    )
+
+    await interaction.response.send_message(embed=report_embed, view=ReportTicketPanel())
+    await interaction.followup.send(embed=other_embed, view=OtherTicketPanel())
 
 
 rankbind_group = app_commands.Group(name="rankbind", description="Manage rank-to-role binds", guild_ids=[GUILD_ID])
@@ -154,7 +174,7 @@ async def rankbind_list(interaction: discord.Interaction):
     for rank_id, role_id in binds.items():
         role = interaction.guild.get_role(int(role_id))
         lines.append(f"Rank `{rank_id}` → {role.mention if role else f'`{role_id}` (deleted role)'}")
-    embed = discord.Embed(title="Rank Binds", description="\n".join(lines), color=discord.Color.blurple())
+    embed = discord.Embed(title=cfg.RANKBIND_LIST_TITLE, description="\n".join(lines), color=cfg.RANKBIND_LIST_COLOR)
     await interaction.response.send_message(embed=embed)
 
 

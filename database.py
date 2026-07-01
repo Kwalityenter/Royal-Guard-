@@ -15,7 +15,6 @@ def init_db():
             linked_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # pending state table to tie an OAuth callback back to the Discord user who started it
     cur.execute("""
         CREATE TABLE IF NOT EXISTS pending_states (
             state TEXT PRIMARY KEY,

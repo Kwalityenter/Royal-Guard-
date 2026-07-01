@@ -1,6 +1,6 @@
-import secrets
+import os
 import requests
-from flask import Flask, request, redirect
+from flask import Flask, request
 
 from config import ROBLOX_CLIENT_ID, ROBLOX_CLIENT_SECRET, REDIRECT_URI
 from database import save_link, pop_pending_state
@@ -34,7 +34,6 @@ def callback():
     if not discord_id:
         return "Invalid or expired verification link. Run /verify again in Discord.", 400
 
-    # Exchange code for access token
     token_resp = requests.post(TOKEN_URL, data={
         "client_id": ROBLOX_CLIENT_ID,
         "client_secret": ROBLOX_CLIENT_SECRET,
@@ -48,7 +47,6 @@ def callback():
 
     access_token = token_resp.json().get("access_token")
 
-    # Get Roblox identity
     userinfo_resp = requests.get(USERINFO_URL, headers={"Authorization": f"Bearer {access_token}"})
     if userinfo_resp.status_code != 200:
         return f"Failed to fetch user info: {userinfo_resp.text}", 400
@@ -66,8 +64,6 @@ def callback():
         </body></html>
     """
 
-
-import os
 
 def run_oauth_server():
     port = int(os.environ.get("PORT", 5000))
