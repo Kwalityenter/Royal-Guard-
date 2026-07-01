@@ -17,7 +17,7 @@ VERIFY_DESCRIPTION_TEMPLATE = (
     "**[Click here to verify]({url})**\n\n"
     "This link is one-time use and tied to your Discord account. It will expire once used."
 )
-VERIFY_COLOR = discord.Color.green()
+VERIFY_COLOR = discord.Color.blue()
 VERIFY_AUTHOR_NAME = "Royal Guard"
 VERIFY_FOOTER_TEXT = "British Army Verification System"
 VERIFY_USE_THUMBNAIL = True
